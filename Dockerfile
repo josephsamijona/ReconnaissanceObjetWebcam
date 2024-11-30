@@ -17,7 +17,7 @@ RUN pip install -r requirements.txt
 COPY . /code/
 
 # Collecter les fichiers statiques
-RUN python manage.py collectstatic --noinput
+
 
 # Exposer le port que l'application va utiliser
 EXPOSE 8000
