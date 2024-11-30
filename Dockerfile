@@ -8,8 +8,18 @@ ENV PYTHONUNBUFFERED 1
 # Définir le répertoire de travail dans le conteneur
 WORKDIR /code
 
-# Installer les dépendances
+# Installer les dépendances système nécessaires pour mysqlclient
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    default-libmysqlclient-dev \
+    gcc \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copier le fichier de dépendances
 COPY requirements.txt /code/
+
+# Installer les dépendances Python
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
@@ -17,7 +27,7 @@ RUN pip install -r requirements.txt
 COPY . /code/
 
 # Collecter les fichiers statiques
-
+RUN python manage.py collectstatic --noinput
 
 # Exposer le port que l'application va utiliser
 EXPOSE 8000
