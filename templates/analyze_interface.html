@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Détection d'Objets</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1c2c 0%, #4a4e69 100%);
+            min-height: 100vh;
+            padding: 2rem;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .detection-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            background: black;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        #video {
+            width: 100%;
+            display: block;
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            justify-content: center;
+        }
+
+        .button {
+            padding: 1rem 2rem;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 150px;
+        }
+
+        .button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .button:disabled {
+            background: #4a4a4a;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results-panel {
+            margin-top: 2rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            padding: 1.5rem;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.8rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #4CAF50;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: rgba(255, 87, 34, 0.2);
+            color: #FF5722;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-top: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Détection d'Objets</h1>
+        </div>
+
+        <div class="detection-container">
+            <div class="video-container">
+                <video id="video" playsinline autoplay></video>
+                <canvas id="canvas"></canvas>
+                <div class="loading" id="loading">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="startBtn" class="button">Démarrer la caméra</button>
+                <button id="captureBtn" class="button" disabled>Analyser</button>
+            </div>
+
+            <div class="error-message" id="error"></div>
+
+            <div class="results-panel">
+                <h2>Résultats</h2>
+                <div id="results"></div>
+            </div>
+        </div>
+    </div>
+
+    <script> 
+        // Clé API dynamique fournie par le backend
+        const API_TOKEN = "{{ api_key }}";
+        const API_URL = 'https://api-inference.huggingface.co/models/google/vit-base-patch16-224';
+
+        let stream = null;
+        let isAnalyzing = false;
+
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startBtn = document.getElementById('startBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+
+        startBtn.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    } 
+                });
+                
+                video.srcObject = stream;
+                await video.play();
+                
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                startBtn.disabled = true;
+                captureBtn.disabled = false;
+            } catch (err) {
+                showError('Erreur d\'accès à la caméra: ' + err.message);
+            }
+        });
+
+        captureBtn.addEventListener('click', async () => {
+            if (!isAnalyzing) {
+                await captureAndAnalyze();
+            }
+        });
+
+        async function captureAndAnalyze() {
+            if (isAnalyzing) return;
+            isAnalyzing = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+
+            try {
+                const imageData = await captureImage();
+                const predictions = await sendToAPI(imageData);
+                displayResults(predictions);
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                loading.style.display = 'none';
+                isAnalyzing = false;
+            }
+        }
+
+        async function captureImage() {
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const blob = await new Promise(resolve => {
+                canvas.toBlob(resolve, 'image/jpeg', 0.8);
+            });
+
+            return await blobToBase64(blob);
+        }
+
+        async function sendToAPI(imageData) {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${API_TOKEN}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    inputs: imageData
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Erreur API (${response.status}): ${errorText}`);
+            }
+
+            return await response.json();
+        }
+
+        function displayResults(predictions) {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+
+            if (!Array.isArray(predictions)) {
+                predictions = [predictions];
+            }
+
+            predictions.forEach(prediction => {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'result-item';
+                
+                let label, confidence;
+                if (prediction.label) {
+                    label = prediction.label;
+                    confidence = prediction.score;
+                } else if (prediction.label_scores) {
+                    const maxScore = Math.max(...prediction.label_scores);
+                    const maxIndex = prediction.label_scores.indexOf(maxScore);
+                    label = prediction.labels[maxIndex];
+                    confidence = maxScore;
+                }
+
+                resultItem.innerHTML = `
+                    <span>${label}</span>
+                    <span>${(confidence * 100).toFixed(1)}%</span>
+                `;
+                results.appendChild(resultItem);
+            });
+        }
+
+        function showError(message) {
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    resolve(reader.result.split(',')[1]);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+    </script>
+
+</body>
+</html>

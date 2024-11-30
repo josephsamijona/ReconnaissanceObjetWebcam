@@ -8,11 +8,12 @@ mysqlclient
 requests
 sqlparse
 redis
-
+dj_database_url
+celery
 # Sécurité
 django-environ
 python-dotenv
-
+gunicorn
 # Auth & Permissions
 djangorestframework-simplejwt
 django-cors-headers
@@ -20,3 +21,4 @@ django-cors-headers
 # Gestion Cache & Performance 
 django-redis
 django-cacheops
+whitenoise
