@@ -1,0 +1,36 @@
+# Fichiers Python
+*.pyc
+__pycache__/
+
+# Environnements virtuels
+env/
+venv/
+
+# Fichiers de configuration
+*.env
+.env
+
+# Clés et configurations sensibles
+
+
+
+# Fichiers de base de données
+db.sqlite3
+
+# Migrations
+*/migrations/
+
+# Fichiers générés
+/staticfiles/
+media/
+
+# Fichiers de logs
+*.log
+
+# Fichiers du système
+.DS_Store
+Thumbs.db
+
+# Fichiers de l'IDE
+.vscode/
+.idea/

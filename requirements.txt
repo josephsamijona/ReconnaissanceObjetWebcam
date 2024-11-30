@@ -1,0 +1,22 @@
+asgiref
+Django
+djangorestframework
+djangorestframework-simplejwt
+django-cors-headers
+django-filter
+mysqlclient
+requests
+sqlparse
+redis
+
+# Sécurité
+django-environ
+python-dotenv
+
+# Auth & Permissions
+djangorestframework-simplejwt
+django-cors-headers
+
+# Gestion Cache & Performance 
+django-redis
+django-cacheops
